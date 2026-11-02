@@ -47,10 +47,35 @@ def main() -> int:
     app.setApplicationName('Тренажёр стрельбы по БПЛА')
     app.setApplicationVersion('0.1.0')
 
+    _apply_stylesheet(app)
+
     window = MainWindow()
     window.show()
 
     return app.exec()
+
+
+def _apply_stylesheet(app: "QApplication") -> None:
+    """Применяет единую QSS-таблицу стилей из файла src/gui/styles.qss.
+
+    Args:
+        app: Экземпляр QApplication.
+    """
+    from PyQt6.QtCore import QFile
+
+    styles_path = Path(__file__).resolve().parent / "src" / "gui" / "styles.qss"
+    if not styles_path.exists():
+        logger.warning("Stylesheet not found: %s", styles_path)
+        return
+
+    file = QFile(str(styles_path))
+    if not file.open(QFile.OpenModeFlag.ReadOnly | QFile.OpenModeFlag.Text):
+        logger.warning("Failed to open stylesheet: %s", styles_path)
+        return
+
+    stylesheet = str(file.readAll(), encoding="utf-8")
+    app.setStyleSheet(stylesheet)
+    logger.debug("Stylesheet applied from %s", styles_path)
 
 
 if __name__ == '__main__':
