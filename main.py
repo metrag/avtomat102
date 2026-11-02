@@ -41,7 +41,11 @@ def main() -> int:
         print(message, file=sys.stderr)
         return 1
 
+    from PyQt6.QtWidgets import QDialog
+
     from src.gui.main_window import MainWindow
+    from src.gui.setup_dialog import SetupDialog
+    from src.gui.splash_screen import SplashScreen
 
     app = QApplication(sys.argv)
     app.setApplicationName('Тренажёр стрельбы по БПЛА')
@@ -49,7 +53,17 @@ def main() -> int:
 
     _apply_stylesheet(app)
 
-    window = MainWindow()
+    splash = SplashScreen()
+    if splash.exec() != QDialog.DialogCode.Accepted:
+        logger.info("Cancelled at splash screen")
+        return 0
+
+    setup = SetupDialog()
+    if setup.exec() != QDialog.DialogCode.Accepted:
+        logger.info("Cancelled at setup dialog")
+        return 0
+
+    window = MainWindow(session_setup=setup.data())
     window.show()
 
     return app.exec()

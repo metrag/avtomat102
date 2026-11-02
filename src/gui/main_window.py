@@ -4,8 +4,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QKeySequence, QPixmap
+from PyQt6.QtCore import QBuffer, QIODevice, Qt
+from PyQt6.QtGui import QAction, QColor, QImage, QKeySequence, QPainter, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QFrame,
@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.gui.calibration_dialog import CalibrationDialog
+from src.gui.shot_photo_dialog import ShotPhotoDialog
 from src.gui.stats_dialog import StatsDialog
 from src.storage.journal import ShotJournal
 from src.utils.config import load_config
@@ -102,11 +103,14 @@ class _AspectRatioLabel(QLabel):
 class MainWindow(QMainWindow):
     """Главное окно тренера с видеопанелью, журналом и статистикой."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, parent: QWidget | None = None, *, session_setup: dict | None = None
+    ) -> None:
         """Инициализация главного окна.
 
         Args:
             parent: Родительский виджет.
+            session_setup: Данные формы настройки занятия (из SetupDialog).
         """
         super().__init__(parent)
         self.setWindowTitle("Тренажёр стрельбы по БПЛА")
@@ -115,14 +119,19 @@ class MainWindow(QMainWindow):
 
         self._config = load_config()
         self._journal = ShotJournal()
+        self._session_setup = session_setup
         self._session_id: int | None = None
         self._session_started = False
         self._hits = 0
         self._misses = 0
+        self._last_frame: QPixmap | None = None
+        self._shot_photo_paths: list[str | None] = []
 
         self._build_ui()
         self._connect_actions()
         self._update_session_status()
+        self._apply_session_info()
+        self._update_manual_controls()
 
     def _build_ui(self) -> None:
         """Создаёт виджеты и компоновку главного окна."""
@@ -132,6 +141,12 @@ class MainWindow(QMainWindow):
         main_layout = QVBoxLayout(central)
         main_layout.setSpacing(12)
         main_layout.setContentsMargins(12, 12, 12, 12)
+
+        # Панель с данными занятия (ФИО, группа, режим, дистанция).
+        self._info_label = QLabel()
+        self._info_label.setObjectName("info_bar")
+        self._info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(self._info_label)
 
         # Верхняя зона: видео слева, правая колонка фиксированной ширины.
         top_layout = QHBoxLayout()
@@ -151,14 +166,12 @@ class MainWindow(QMainWindow):
         journal_group = QGroupBox("Журнал выстрелов")
         journal_layout = QVBoxLayout(journal_group)
 
-        self._shots_table = QTableWidget(0, 4)
-        self._shots_table.setHorizontalHeaderLabels(
-            ["№", "Время", "Результат", "Координаты"]
-        )
+        self._shots_table = QTableWidget(0, 3)
+        self._shots_table.setHorizontalHeaderLabels(["№", "Время", "Результат"])
         self._shots_table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
-        self._shots_table.setColumnWidth(0, 60)
+        self._shots_table.setAlternatingRowColors(True)
         journal_layout.addWidget(self._shots_table)
         main_layout.addWidget(journal_group, stretch=1)
 
@@ -194,6 +207,17 @@ class MainWindow(QMainWindow):
         control_layout.addWidget(self._start_button)
         control_layout.addWidget(self._finish_button)
         control_layout.addWidget(self._stats_button)
+
+        # Кнопки ручной отметки результатов (видны только в ручном режиме).
+        manual_row = QHBoxLayout()
+        self._hit_button = QPushButton("✔ Попадание")
+        self._hit_button.setObjectName("accent")
+        self._miss_button = QPushButton("✘ Промах")
+        self._miss_button.setVisible(False)
+        self._hit_button.setVisible(False)
+        manual_row.addWidget(self._hit_button)
+        manual_row.addWidget(self._miss_button)
+        control_layout.addLayout(manual_row)
 
         # Статус-индикатор сессии.
         self._status_label = QLabel("Сессия: неактивна")
@@ -246,6 +270,11 @@ class MainWindow(QMainWindow):
         self.addAction(stats_action)
         self._stats_button.clicked.connect(self.on_stats)
 
+        self._shots_table.itemDoubleClicked.connect(self._on_shot_double_click)
+
+        self._hit_button.clicked.connect(lambda: self.on_shot(True, (0, 0)))
+        self._miss_button.clicked.connect(lambda: self.on_shot(False, (0, 0)))
+
     def on_calibrate(self) -> None:
         """Открывает диалог калибровки прицела."""
         logger.info("Opening calibration dialog")
@@ -259,15 +288,19 @@ class MainWindow(QMainWindow):
         self._hits = 0
         self._misses = 0
         self._shots_table.setRowCount(0)
+        self._shot_photo_paths = []
 
         try:
-            self._session_id = self._journal.start_session()
+            self._session_id = self._journal.start_session(
+                metadata=self._session_setup
+            )
         except Exception as exc:
             logger.exception("Failed to start session in journal: %s", exc)
             self._session_id = None
 
         self._update_stats()
         self._update_session_status()
+        self._update_manual_controls()
 
         self._start_button.setEnabled(False)
         self._finish_button.setEnabled(True)
@@ -290,6 +323,7 @@ class MainWindow(QMainWindow):
         self._finish_button.setEnabled(False)
         self._video_label.setText("Занятие завершено")
         self._update_session_status()
+        self._update_manual_controls()
 
     def on_stats(self) -> None:
         """Открывает диалог статистики последней сессии."""
@@ -332,8 +366,8 @@ class MainWindow(QMainWindow):
         result_item.setForeground(result_color)
         self._shots_table.setItem(row, 2, result_item)
 
-        coords_item = QTableWidgetItem(f"{coordinates[0]}, {coordinates[1]}")
-        self._shots_table.setItem(row, 3, coords_item)
+        photo_path = self._save_shot_photo(row + 1)
+        self._shot_photo_paths.append(str(photo_path) if photo_path else None)
 
         if self._session_id is not None:
             try:
@@ -341,6 +375,7 @@ class MainWindow(QMainWindow):
                     session_id=self._session_id,
                     hit=hit,
                     aim=coordinates,
+                    photo_path=str(photo_path) if photo_path else None,
                 )
             except Exception as exc:
                 logger.exception("Failed to log shot in journal: %s", exc)
@@ -353,6 +388,7 @@ class MainWindow(QMainWindow):
         Args:
             pixmap: Кадр видеопотока.
         """
+        self._last_frame = pixmap
         self._video_label.setPixmap(pixmap)
 
     def _update_stats(self) -> None:
@@ -374,6 +410,100 @@ class MainWindow(QMainWindow):
             self._status_label.setObjectName("status_inactive")
         self._status_label.style().unpolish(self._status_label)
         self._status_label.style().polish(self._status_label)
+
+    def _apply_session_info(self) -> None:
+        """Выводит данные занятия из формы настройки в панель окна."""
+        if not self._session_setup:
+            self._info_label.hide()
+            return
+
+        setup = self._session_setup
+        parts = [
+            setup.get("rank"),
+            setup.get("full_name"),
+            f"гр. {setup.get('group_no')}" if setup.get("group_no") else None,
+            setup.get("mode"),
+            f"{setup.get('distance')} м" if setup.get("distance") else None,
+            f"{setup.get('ammo')} патр." if setup.get("ammo") else None,
+        ]
+        self._info_label.setText("  ·  ".join(str(p) for p in parts if p))
+        self._info_label.show()
+
+    def _update_manual_controls(self) -> None:
+        """Показывает кнопки отметки попадания только в ручном режиме."""
+        manual = self._session_started and (
+            self._session_setup or {}
+        ).get("mode") == "Ручной"
+        self._hit_button.setVisible(manual)
+        self._miss_button.setVisible(manual)
+
+    def _save_shot_photo(self, shot_no: int) -> Path | None:
+        """Сохраняет кадр выстрела (или плейсхолдер) в data/shots.
+
+        Args:
+            shot_no: Порядковый номер выстрела в сессии.
+
+        Returns:
+            Путь к файлу или None, если сессия не активна/ошибка записи.
+        """
+        if self._session_id is None:
+            return None
+
+        image_bytes = self._frame_to_jpeg()
+        if image_bytes is None:
+            return None
+
+        try:
+            return self._journal.save_shot_photo(
+                self._session_id, shot_no, image_bytes
+            )
+        except Exception as exc:
+            logger.exception("Failed to save shot photo: %s", exc)
+            return None
+
+    def _frame_to_jpeg(self) -> bytes | None:
+        """Кодирует последний кадр (или плейсхолдер) в JPEG.
+
+        Returns:
+            Байты JPEG или None при ошибке.
+        """
+        if self._last_frame is not None and not self._last_frame.isNull():
+            pixmap = self._last_frame
+        else:
+            image = QImage(640, 480, QImage.Format.Format_RGB32)
+            image.fill(QColor("#1A1A1A"))
+            painter = QPainter(image)
+            painter.setPen(QColor("#888888"))
+            painter.drawText(
+                image.rect(),
+                int(Qt.AlignmentFlag.AlignCenter),
+                "Кадр не сохранён",
+            )
+            painter.end()
+            pixmap = QPixmap.fromImage(image)
+
+        buffer = QBuffer()
+        if not buffer.open(QIODevice.OpenModeFlag.WriteOnly):
+            return None
+        if not pixmap.save(buffer, "JPEG", 85):
+            return None
+        return bytes(buffer.data())
+
+    def _on_shot_double_click(self, row: int, column: int) -> None:
+        """Открывает фото выстрела по двойному клику на строке журнала.
+
+        Args:
+            row: Индекс строки.
+            column: Индекс столбца.
+        """
+        del column
+        path = (
+            self._shot_photo_paths[row]
+            if 0 <= row < len(self._shot_photo_paths)
+            else None
+        )
+        dialog = ShotPhotoDialog(shot_no=row + 1, photo_path=path, parent=self)
+        dialog.exec()
 
     def closeEvent(self, event) -> None:
         """Обрабатывает закрытие окна.

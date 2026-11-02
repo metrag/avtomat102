@@ -53,16 +53,18 @@ class CalibrationDialog(QDialog):
         layout = QVBoxLayout(self)
 
         info = QLabel(
-            "Кликните по точке, в которую реально попадает выстрел.\n"
-            "Смещение относительно центра кадра будет сохранено."
+            "Шаг 1. Ведите огонь по мишени и определите точку реального попадания.\n"
+            "Шаг 2. Кликните по этой точке на кадре — смещение от центра\n"
+            "будет сохранено и применено при засчёте попаданий."
         )
+        info.setObjectName("calib_hint")
         info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(info)
 
         self._image_label = QLabel()
+        self._image_label.setObjectName("calib_frame")
         self._image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._image_label.setMinimumSize(640, 480)
-        self._image_label.setStyleSheet("background-color: #1a1a1a;")
         self._image_label.setMouseTracking(True)
         self._image_label.mousePressEvent = self._on_mouse_press
         layout.addWidget(self._image_label)
@@ -71,7 +73,8 @@ class CalibrationDialog(QDialog):
         layout.addWidget(self._offset_label)
 
         buttons_layout = QHBoxLayout()
-        save_button = QPushButton("Сохранить")
+        save_button = QPushButton("Готов")
+        save_button.setObjectName("accent")
         save_button.clicked.connect(self._on_save)
         cancel_button = QPushButton("Отмена")
         cancel_button.clicked.connect(self.reject)

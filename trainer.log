@@ -1,0 +1,75 @@
+2026-11-02 13:12:31 [INFO] src.gui.main_window: Opening calibration dialog
+2026-11-02 13:12:38 [INFO] src.gui.main_window: Starting training session
+2026-11-02 13:12:41 [INFO] src.gui.main_window: Finishing training session
+2026-11-02 13:12:42 [INFO] src.gui.main_window: Finishing training session
+2026-11-02 13:12:42 [INFO] src.gui.main_window: Finishing training session
+2026-11-02 13:12:45 [INFO] src.gui.main_window: Main window is closing
+2026-11-02 13:14:40 [INFO] src.gui.main_window: Starting training session
+2026-11-02 13:14:43 [INFO] src.gui.main_window: Opening calibration dialog
+2026-11-02 13:14:44 [INFO] src.gui.calibration_dialog: Calibration offset selected: (67, 1)
+2026-11-02 13:14:48 [INFO] src.gui.calibration_dialog: Calibration offset selected: (47, -11)
+2026-11-02 13:14:50 [INFO] src.gui.calibration_dialog: Calibration offset selected: (139, -143)
+2026-11-02 13:14:50 [INFO] src.gui.calibration_dialog: Calibration offset selected: (139, -143)
+2026-11-02 13:14:50 [INFO] src.gui.calibration_dialog: Calibration offset selected: (139, -143)
+2026-11-02 13:14:50 [INFO] src.gui.calibration_dialog: Calibration offset selected: (139, -143)
+2026-11-02 13:14:51 [INFO] src.gui.calibration_dialog: Calibration offset selected: (139, -143)
+2026-11-02 13:14:51 [INFO] src.gui.calibration_dialog: Calibration offset selected: (139, -143)
+2026-11-02 13:14:53 [INFO] src.gui.calibration_dialog: Calibration offset selected: (231, 26)
+2026-11-02 13:14:54 [INFO] src.gui.calibration_dialog: Calibration saved to data\calibration\calibration.json
+2026-11-02 13:14:57 [INFO] src.gui.main_window: Opening calibration dialog
+2026-11-02 13:14:58 [INFO] src.gui.calibration_dialog: Calibration offset selected: (180, 106)
+2026-11-02 13:15:04 [INFO] src.gui.main_window: Main window is closing
+2026-11-02 13:15:04 [INFO] src.gui.main_window: Finishing training session
+2026-11-02 13:17:26 [INFO] src.gui.main_window: Main window is closing
+2026-11-02 13:32:13 [INFO] src.gui.main_window: Opening calibration dialog
+2026-11-02 13:32:14 [INFO] src.gui.calibration_dialog: Calibration offset selected: (276, -51)
+2026-11-02 13:32:15 [INFO] src.gui.calibration_dialog: Calibration offset selected: (276, -51)
+2026-11-02 13:32:17 [INFO] src.gui.calibration_dialog: Calibration offset selected: (291, -162)
+2026-11-02 13:32:17 [INFO] src.gui.calibration_dialog: Calibration offset selected: (291, -162)
+2026-11-02 13:32:17 [INFO] src.gui.calibration_dialog: Calibration offset selected: (291, -162)
+2026-11-02 13:32:19 [INFO] src.gui.calibration_dialog: Calibration offset selected: (-133, -143)
+2026-11-02 13:32:21 [INFO] src.gui.calibration_dialog: Calibration saved to data\calibration\calibration.json
+2026-11-02 13:32:24 [INFO] src.gui.main_window: Starting training session
+2026-11-02 13:32:24 [INFO] src.storage.journal: Started session id=1
+2026-11-02 13:32:25 [INFO] src.gui.main_window: Finishing training session
+2026-11-02 13:32:25 [INFO] src.storage.journal: Finished session id=1
+2026-11-02 13:32:26 [INFO] src.gui.main_window: Opening stats dialog
+2026-11-02 13:32:33 [INFO] src.gui.main_window: Main window is closing
+2026-11-02 13:34:22 [INFO] src.gui.main_window: Opening calibration dialog
+2026-11-02 13:34:25 [INFO] src.gui.main_window: Starting training session
+2026-11-02 13:34:25 [INFO] src.storage.journal: Started session id=2
+2026-11-02 13:34:28 [INFO] src.gui.main_window: Finishing training session
+2026-11-02 13:34:28 [INFO] src.storage.journal: Finished session id=2
+2026-11-02 13:34:30 [INFO] src.gui.main_window: Opening stats dialog
+2026-11-02 13:34:38 [INFO] src.gui.main_window: Starting training session
+2026-11-02 13:34:38 [INFO] src.storage.journal: Started session id=3
+2026-11-02 13:34:45 [INFO] src.gui.main_window: Opening stats dialog
+2026-11-02 13:35:04 [INFO] src.gui.main_window: Finishing training session
+2026-11-02 13:35:04 [INFO] src.storage.journal: Finished session id=3
+2026-11-02 13:35:06 [INFO] src.gui.main_window: Opening calibration dialog
+2026-11-02 13:35:08 [INFO] src.gui.main_window: Starting training session
+2026-11-02 13:35:08 [INFO] src.storage.journal: Started session id=4
+2026-11-02 13:35:10 [INFO] src.gui.main_window: Finishing training session
+2026-11-02 13:35:10 [INFO] src.storage.journal: Finished session id=4
+2026-11-02 13:35:11 [INFO] src.gui.main_window: Opening stats dialog
+2026-11-02 13:35:16 [INFO] src.gui.main_window: Starting training session
+2026-11-02 13:35:16 [INFO] src.storage.journal: Started session id=5
+2026-11-02 13:35:18 [INFO] src.gui.main_window: Opening calibration dialog
+2026-11-02 13:35:19 [INFO] src.gui.calibration_dialog: Calibration offset selected: (-84, 1)
+2026-11-02 13:35:19 [INFO] src.gui.calibration_dialog: Calibration offset selected: (-84, 1)
+2026-11-02 13:35:20 [INFO] src.gui.calibration_dialog: Calibration saved to data\calibration\calibration.json
+2026-11-02 13:36:21 [INFO] src.gui.main_window: Finishing training session
+2026-11-02 13:36:21 [INFO] src.storage.journal: Finished session id=5
+2026-11-02 13:36:22 [INFO] src.gui.main_window: Opening calibration dialog
+2026-11-02 13:36:25 [INFO] src.gui.calibration_dialog: Calibration offset selected: (227, 32)
+2026-11-02 13:36:27 [INFO] src.gui.calibration_dialog: Calibration offset selected: (270, -127)
+2026-11-02 13:36:28 [INFO] src.gui.calibration_dialog: Calibration offset selected: (-57, -79)
+2026-11-02 13:36:33 [INFO] src.gui.calibration_dialog: Calibration offset selected: (-130, -53)
+2026-11-02 13:36:33 [INFO] src.gui.calibration_dialog: Calibration offset selected: (-88, -157)
+2026-11-02 13:36:34 [INFO] src.gui.calibration_dialog: Calibration offset selected: (-88, -157)
+2026-11-02 13:36:34 [INFO] src.gui.calibration_dialog: Calibration offset selected: (-88, -157)
+2026-11-02 13:36:34 [INFO] src.gui.calibration_dialog: Calibration offset selected: (-88, -157)
+2026-11-02 13:36:35 [INFO] src.gui.calibration_dialog: Calibration offset selected: (135, -143)
+2026-11-02 13:36:37 [INFO] src.gui.calibration_dialog: Calibration offset selected: (269, 71)
+2026-11-02 13:36:38 [INFO] src.gui.calibration_dialog: Calibration offset selected: (66, 128)
+2026-11-02 13:36:41 [INFO] src.gui.calibration_dialog: Calibration saved to data\calibration\calibration.json
