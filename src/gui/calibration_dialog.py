@@ -53,9 +53,9 @@ class CalibrationDialog(QDialog):
         layout = QVBoxLayout(self)
 
         info = QLabel(
-            "Шаг 1. Ведите огонь по мишени и определите точку реального попадания.\n"
-            "Шаг 2. Кликните по этой точке на кадре — смещение от центра\n"
-            "будет сохранено и применено при засчёте попаданий."
+            "1) Произведите прицеливание\n"
+            "2) Произведите выстрел\n"
+            "3) Отметьте точку попадания на экране"
         )
         info.setObjectName("calib_hint")
         info.setAlignment(Qt.AlignmentFlag.AlignCenter)
