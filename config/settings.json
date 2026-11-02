@@ -20,6 +20,7 @@
     "offset_y": 0
   },
   "storage": {
-    "db_path": "data/logs/journal.db"
+    "db_path": "data/logs/journal.db",
+    "reports_dir": "data/reports"
   }
 }

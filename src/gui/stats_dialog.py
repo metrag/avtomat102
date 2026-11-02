@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -18,6 +19,7 @@ from PyQt6.QtWidgets import (
 
 from src.analysis.session_stats import summarize
 from src.storage.journal import ShotJournal
+from src.storage.report import ReportError, export_report
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,7 @@ class StatsDialog(QDialog):
         self.resize(700, 500)
 
         self._journal = journal or ShotJournal()
+        self._session_id: int | None = None
 
         self._build_ui()
         self._load_stats()
@@ -78,10 +81,43 @@ class StatsDialog(QDialog):
         )
         layout.addWidget(self._shots_table)
 
-        # Кнопка закрытия.
+        # Кнопки экспорта и закрытия.
+        buttons_row = QHBoxLayout()
+
+        csv_button = QPushButton("Экспорт CSV")
+        csv_button.clicked.connect(lambda: self._export("csv"))
+        buttons_row.addWidget(csv_button)
+
+        txt_button = QPushButton("Экспорт TXT")
+        txt_button.clicked.connect(lambda: self._export("txt"))
+        buttons_row.addWidget(txt_button)
+
+        buttons_row.addStretch()
+
         close_button = QPushButton("Закрыть")
         close_button.clicked.connect(self.accept)
-        layout.addWidget(close_button)
+        buttons_row.addWidget(close_button)
+
+        layout.addLayout(buttons_row)
+
+    def _export(self, fmt: str) -> None:
+        """Экспортирует отчёт текущей сессии и показывает путь к файлу.
+
+        Args:
+            fmt: Формат файла — 'csv' или 'txt'.
+        """
+        if self._session_id is None:
+            QMessageBox.warning(self, "Экспорт", "Нет сессии для экспорта.")
+            return
+
+        try:
+            path = export_report(self._journal, self._session_id, fmt=fmt)
+        except ReportError as exc:
+            logger.error("Export failed: %s", exc)
+            QMessageBox.warning(self, "Ошибка экспорта", str(exc))
+            return
+
+        QMessageBox.information(self, "Экспорт", f"Отчёт сохранён:\n{path}")
 
     def _load_stats(self) -> None:
         """Загружает и отображает статистику последней сессии."""
@@ -91,6 +127,7 @@ class StatsDialog(QDialog):
             return
 
         last_session_id = sessions[-1]["id"]
+        self._session_id = last_session_id
         shots = self._journal.get_shots(last_session_id)
         if not shots:
             self._set_empty_state("В последней сессии нет выстрелов")
