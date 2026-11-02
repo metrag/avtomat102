@@ -211,8 +211,15 @@ QToolTip {
 /* Заставка */
 QLabel#splash_title {
     color: #00FF41;
-    font-size: 20pt;
+    font-size: 14pt;
     font-weight: bold;
+    padding: 8px;
+}
+
+QLabel#splash_image {
+    border: none;
+    background-color: transparent;
+    padding: 8px;
 }
 
 QLabel#splash_subtitle {
