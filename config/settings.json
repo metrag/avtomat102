@@ -1,0 +1,25 @@
+{
+  "network": {
+    "video_port": 5000,
+    "trigger_port": 5001,
+    "result_port": 5002,
+    "buffer_size": 65536,
+    "host": "127.0.0.1"
+  },
+  "detection": {
+    "model_path": "data/models/yolov8s-seg.pt",
+    "confidence_threshold": 0.5,
+    "device": "cpu"
+  },
+  "lead": {
+    "bullet_speed": 850.0,
+    "enabled": true
+  },
+  "calibration": {
+    "offset_x": 0,
+    "offset_y": 0
+  },
+  "storage": {
+    "db_path": "data/logs/journal.db"
+  }
+}
