@@ -2,24 +2,24 @@
 
 ## Фаза 1: Тема и стили
 
-- [ ] Task: Написать тесты для src/analysis/session_stats.py (pure: сводка из списка выстрелов)
-- [ ] Task: Создать src/gui/styles.qss (палитра #1E1E1E/#00FF41, кнопки, таблицы)
-- [ ] Task: src/analysis/session_stats.py + подключение QSS в main.py
+- [x] Task: Написать тесты для src/analysis/session_stats.py (pure: сводка из списка выстрелов)
+- [x] Task: Создать src/gui/styles.qss (палитра #1E1E1E/#00FF41, кнопки, таблицы)
+- [x] Task: src/analysis/session_stats.py + подключение QSS в main.py
 
 ## Фаза 2: Раскладка главного окна
 
-- [ ] Task: Переработать src/gui/main_window.py: видео слева, колонка 360px справа, журнал снизу; 1440×900/min 1024×700; size policies
+- [x] Task: Переработать src/gui/main_window.py: видео слева, колонка 360px справа, журнал снизу; 1440×900/min 1024×700; size policies
 
 ## Фаза 3: Иконки и индикация
 
-- [ ] Task: Иконки F1/F2/F3 (QIcon из ресурсов/Unicode), статус-индикатор сессии
-- [ ] Task: Окраска строк журнала (hit/miss)
+- [x] Task: Иконки F1/F2/F3 (QIcon из ресурсов/Unicode), статус-индикатор сессии
+- [x] Task: Окраска строк журнала (hit/miss)
 
 ## Фаза 4: Экран статистики
 
-- [ ] Task: src/gui/stats_dialog.py — сводка сессии из journal.db через session_stats
-- [ ] Task: Кнопка/клавиша открытия статистики в главном окне
+- [x] Task: src/gui/stats_dialog.py — сводка сессии из journal.db через session_stats
+- [x] Task: Кнопка/клавиша открытия статистики в главном окне
 
 ## Фаза 5: Проверка
 
-- [ ] Task: pytest — зелёный; ручной запуск main.py (подтверждение пользователя)
+- [x] Task: pytest — зелёный; ручной запуск main.py (подтверждение пользователя)
