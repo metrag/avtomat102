@@ -15,9 +15,15 @@ QWidget {
     font-size: 11pt;
 }
 
+QFrame {
+    border: 1px solid #3A3A3A;
+    background-color: #252525;
+}
+
 QLabel {
     color: #CCCCCC;
     background-color: transparent;
+    border: none;
     padding: 4px;
 }
 
@@ -46,11 +52,6 @@ QGroupBox::title {
     left: 8px;
     padding: 0 4px;
     color: #00FF41;
-}
-
-QFrame {
-    border: 1px solid #3A3A3A;
-    background-color: #252525;
 }
 
 QPushButton {
@@ -213,13 +214,15 @@ QLabel#splash_title {
     color: #00FF41;
     font-size: 14pt;
     font-weight: bold;
-    padding: 8px;
+    padding: 12px;
+    border: none;
+    background-color: transparent;
 }
 
 QLabel#splash_image {
     border: none;
     background-color: transparent;
-    padding: 8px;
+    padding: 0;
 }
 
 QLabel#splash_subtitle {

@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 logger = logging.getLogger(__name__)
 
 _GERB_PATH = Path(__file__).resolve().parents[2] / "assets" / "images" / "gerb.png"
-_MAX_IMAGE_SIZE = 400
+_MAX_IMAGE_SIZE = 350
 
 
 class SplashScreen(QDialog):
@@ -29,7 +29,7 @@ class SplashScreen(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("Тренажёр стрельбы по БПЛА")
-        self.setFixedSize(760, 560)
+        self.setFixedSize(800, 800)
         self._build_ui()
         logger.info("Splash screen shown")
 
@@ -47,7 +47,7 @@ class SplashScreen(QDialog):
         image_label = QLabel()
         image_label.setObjectName("splash_image")
         image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        image_label.setMinimumHeight(200)
+        image_label.setMinimumHeight(_MAX_IMAGE_SIZE)
         image_label.setPixmap(self._load_gerb())
         layout.addWidget(image_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
@@ -63,7 +63,7 @@ class SplashScreen(QDialog):
 
         layout.addStretch()
 
-        next_button = QPushButton("Далее →")
+        next_button = QPushButton("Начать")
         next_button.setObjectName("accent")
         next_button.setFixedWidth(220)
         next_button.clicked.connect(self.accept)
