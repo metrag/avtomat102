@@ -1,9 +1,10 @@
-"""Обёртка над YOLOv8s-seg для детекции и сегментации БПЛА."""
+"""Детектор БПЛА на основе YOLOv8s-seg с сегментацией."""
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import List, Tuple
 
+import cv2
 import numpy as np
 
 
@@ -15,64 +16,56 @@ class DetectionError(Exception):
 
 @dataclass
 class Detection:
-    """Результат детекции одного объекта.
-
+    """Результат детекции.
+    
     Attributes:
-        class_name: Имя класса объекта.
+        bbox: Ограничивающая рамка [x1, y1, x2, y2].
+        contour: Список точек контура [(x1, y1), (x2, y2), ...].
         confidence: Уверенность детекции (0.0-1.0).
-        bbox: Ограничивающая рамка (x_min, y_min, x_max, y_max).
-        mask: Бинарная маска сегментации (HxW) или None.
+        class_id: ID класса объекта.
     """
 
-    class_name: str
+    bbox: np.ndarray  # [x1, y1, x2, y2]
+    contour: List[Tuple[int, int]]  # Polygon points
     confidence: float
-    bbox: tuple[int, int, int, int]
-    mask: np.ndarray | None
+    class_id: int
 
 
-class Detector:
-    """Детектор БПЛА на базе YOLOv8s-seg.
-
+class DroneDetector:
+    """Детектор БПЛА на основе YOLOv8s-seg.
+    
     Attributes:
-        model_path: Путь к файлу весов модели.
-        confidence_threshold: Порог уверенности.
-        device: Устройство инференса ('cpu' или 'cuda').
+        _model_path: Путь к файлу весов модели.
+        _model: Экземпляр модели (ленивая инициализация).
+        _confidence_threshold: Порог уверенности.
     """
 
     def __init__(
         self,
-        model_path: str,
+        model_path: str = "data/models/yolov8s-seg.pt",
         confidence_threshold: float = 0.5,
-        device: str = "cpu",
     ):
-        """Инициализация детектора.
-
+        """Инициализация детектора с ленивой загрузкой модели.
+        
         Args:
             model_path: Путь к файлу .pt модели.
             confidence_threshold: Минимальная уверенность для отбора.
-            device: Устройство инференса.
         """
-        self.model_path = model_path
-        self.confidence_threshold = confidence_threshold
-        self.device = device
-        self._model: Any | None = None
+        self._model_path = model_path
+        self._model = None  # Ленивая инициализация
+        self._confidence_threshold = confidence_threshold
 
-    def load_model(self) -> None:
-        """Загружает модель YOLOv8 из файла весов.
-
+    def _load_model(self):
+        """Загружает модель при первом вызове.
+        
         Raises:
             FileNotFoundError: Если файл модели отсутствует.
             DetectionError: Если не удалось загрузить модель.
         """
-        path = Path(self.model_path)
+        path = Path(self._model_path)
         if not path.exists():
-            raise FileNotFoundError(
-                f"Файл модели не найден: {self.model_path}. "
-                f"Поместите веса YOLOv8s-seg по указанному пути."
-            )
+            raise FileNotFoundError(f"Модель не найдена: {self._model_path}")
 
-        # Импорт внутри метода, чтобы приложение не падало при импорте модуля,
-        # если ultralytics не установлена.
         try:
             from ultralytics import YOLO
         except ImportError as exc:
@@ -84,17 +77,19 @@ class Detector:
         try:
             self._model = YOLO(str(path))
         except Exception as exc:
-            raise DetectionError(f"Не удалось загрузить модель {self.model_path}") from exc
+            raise DetectionError(
+                f"Не удалось загрузить модель {self._model_path}"
+            ) from exc
 
-    def detect(self, frame: np.ndarray) -> list[Detection]:
-        """Выполняет детекцию на кадре.
-
+    def detect(self, frame: np.ndarray) -> List[Detection]:
+        """Детектирует БПЛА на кадре.
+        
         Args:
-            frame: Изображение BGR (HxWx3).
-
+            frame: RGB изображение (H, W, C).
+        
         Returns:
-            Список обнаруженных объектов.
-
+            Список детекций с bbox, contour (polygon), confidence, class_id.
+        
         Raises:
             DetectionError: Если модель не загружена или инференс не удался.
             ValueError: Если кадр пустой.
@@ -103,47 +98,54 @@ class Detector:
             raise ValueError("Передан пустой кадр")
 
         if self._model is None:
-            self.load_model()
+            self._load_model()
 
         try:
-            results = self._model.predict(
-                frame,
-                conf=self.confidence_threshold,
-                device=self.device,
-                verbose=False,
-            )
+            results = self._model(frame, verbose=False)
         except Exception as exc:
             raise DetectionError("Ошибка инференса модели") from exc
 
-        detections: list[Detection] = []
-        if not results:
-            return detections
+        detections: List[Detection] = []
 
-        result = results[0]
-        boxes = result.boxes
-        masks = result.masks
+        for result in results:
+            if result.masks is None:
+                continue
 
-        if boxes is None:
-            return detections
+            for mask, box in zip(result.masks, result.boxes):
+                if box.conf.item() < self._confidence_threshold:
+                    continue
 
-        for index, box in enumerate(boxes):
-            x_min, y_min, x_max, y_max = box.xyxy[0].cpu().numpy().astype(int)
-            confidence = float(box.conf[0])
-            class_id = int(box.cls[0])
-            class_name = result.names.get(class_id, str(class_id))
+                # Извлекаем контур из маски
+                contour = self._mask_to_contour(mask.data.cpu().numpy())
 
-            mask = None
-            if masks is not None and masks.data is not None and index < len(masks.data):
-                mask_tensor = masks.data[index]
-                mask = mask_tensor.cpu().numpy().astype(np.uint8)
-
-            detections.append(
-                Detection(
-                    class_name=class_name,
-                    confidence=confidence,
-                    bbox=(x_min, y_min, x_max, y_max),
-                    mask=mask,
+                detections.append(
+                    Detection(
+                        bbox=box.xyxy[0].cpu().numpy(),  # [x1, y1, x2, y2]
+                        contour=contour,  # List[Tuple[int, int]]
+                        confidence=box.conf.item(),
+                        class_id=int(box.cls.item()),
+                    )
                 )
-            )
 
         return detections
+
+    def _mask_to_contour(self, mask: np.ndarray) -> List[Tuple[int, int]]:
+        """Конвертирует binary mask в контур (список точек).
+        
+        Args:
+            mask: Binary mask (H, W).
+        
+        Returns:
+            Список точек [(x1, y1), (x2, y2), ...].
+        """
+        mask_uint8 = (mask * 255).astype(np.uint8)
+        contours, _ = cv2.findContours(
+            mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        if not contours:
+            return []
+
+        # Берём largest contour
+        largest_contour = max(contours, key=cv2.contourArea)
+        return [(int(pt[0][0]), int(pt[0][1])) for pt in largest_contour]

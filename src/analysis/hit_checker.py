@@ -1,6 +1,13 @@
-"""Чистая логика проверки попадания по маске и ограничивающей рамке."""
+"""Чистая логика проверки попадания по контуру, многоугольнику и ограничивающей рамке."""
 
-from typing import Sequence
+from typing import List, Sequence, Tuple
+
+import numpy as np
+
+try:
+    import cv2
+except ImportError:
+    cv2 = None  # type: ignore[assignment]
 
 
 def point_in_polygon(point: tuple[int, int], polygon: Sequence[tuple[int, int]]) -> bool:
@@ -88,3 +95,44 @@ def point_in_bbox(
     x, y = point
     x_min, y_min, x_max, y_max = bbox
     return x_min <= x <= x_max and y_min <= y <= y_max
+
+
+def point_in_contour(point: Tuple[float, float], contour: List[Tuple[int, int]]) -> bool:
+    """
+    Проверяет, находится ли точка внутри контура.
+
+    Args:
+        point: (x, y) координаты прицела
+        contour: Список точек контура [(x1, y1), (x2, y2), ...]
+
+    Returns:
+        True если точка внутри контура
+    """
+    if len(contour) < 3:
+        return False
+
+    # Если cv2 недоступен, используем point_in_polygon как fallback
+    if cv2 is None:
+        return point_in_polygon((int(point[0]), int(point[1])), contour)
+
+    # Конвертируем в формат для cv2
+    contour_array = np.array(contour, dtype=np.int32)
+    result = cv2.pointPolygonTest(contour_array, point, measureDist=False)
+    return result >= 0  # 0 = на границе, >0 = внутри
+
+
+def check_hit(aim_point: Tuple[float, float], detections) -> bool:
+    """
+    Проверяет попадание по любой из детекций.
+
+    Args:
+        aim_point: Координаты прицела (x, y)
+        detections: Список детекций с контурами
+
+    Returns:
+        True если прицел внутри хотя бы одного контура
+    """
+    for detection in detections:
+        if point_in_contour(aim_point, detection.contour):
+            return True
+    return False

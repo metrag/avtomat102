@@ -2,7 +2,10 @@
 
 import pytest
 
-from src.analysis.hit_checker import point_in_bbox, point_in_polygon
+import numpy as np
+
+from src.analysis.hit_checker import point_in_bbox, point_in_polygon, point_in_contour, check_hit
+from src.detection.detector import Detection
 
 
 class TestPointInPolygon:
@@ -48,3 +51,35 @@ class TestPointInBbox:
     def test_point_on_border(self):
         """Точка на границе рамки — попадание."""
         assert point_in_bbox((10, 5), (0, 0, 10, 10)) is True
+
+
+def test_point_in_contour():
+    """Тест проверки точки внутри контура."""
+    contour = [(0, 0), (100, 0), (100, 100), (0, 100)]
+    
+    # Точка внутри
+    assert point_in_contour((50, 50), contour) is True
+    
+    # Точка снаружи
+    assert point_in_contour((150, 150), contour) is False
+    
+    # Точка на границе
+    assert point_in_contour((0, 0), contour) is True
+
+
+def test_check_hit():
+    """Тест проверки попадания по детекциям."""
+    detections = [
+        Detection(
+            bbox=np.array([100, 100, 200, 200]),
+            contour=[(100, 100), (200, 100), (200, 200), (100, 200)],
+            confidence=0.9,
+            class_id=0
+        )
+    ]
+    
+    # Попадание
+    assert check_hit((150, 150), detections) is True
+    
+    # Промах
+    assert check_hit((50, 50), detections) is False
