@@ -18,6 +18,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from src.utils.window_utils import set_window_icon
+
 from src.utils.config import load_config
 
 logger = logging.getLogger(__name__)
@@ -39,6 +41,7 @@ class CalibrationDialog(QDialog):
             parent: Родительский виджет.
         """
         super().__init__(parent)
+        set_window_icon(self)
         self.setWindowTitle("Калибровка прицела")
 
 
@@ -58,7 +61,7 @@ class CalibrationDialog(QDialog):
             "3) Отметьте точку попадания на экране"
         )
         info.setObjectName("calib_hint")
-        info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(info)
 
         self._image_label = QLabel()

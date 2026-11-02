@@ -21,6 +21,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from src.utils.window_utils import set_window_icon
+
 from src.gui.calibration_dialog import CalibrationDialog
 from src.gui.shot_photo_dialog import ShotPhotoDialog
 from src.gui.stats_dialog import StatsDialog
@@ -113,6 +115,7 @@ class MainWindow(QMainWindow):
             session_setup: Данные формы настройки занятия (из SetupDialog).
         """
         super().__init__(parent)
+        set_window_icon(self)
         self.setWindowTitle("Тренажёр стрельбы по БПЛА")
         self.setMinimumSize(1024, 700)
 

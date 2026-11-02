@@ -13,6 +13,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from src.utils.window_utils import set_window_icon
+
 logger = logging.getLogger(__name__)
 
 _MAX_WIDTH = 640
@@ -36,6 +38,7 @@ class ShotPhotoDialog(QDialog):
             parent: Родительский виджет.
         """
         super().__init__(parent)
+        set_window_icon(self)
         self.setWindowTitle(f"Выстрел №{shot_no}")
         self.setModal(True)
         self._build_ui(photo_path)

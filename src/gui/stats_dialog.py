@@ -17,6 +17,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from src.utils.window_utils import set_window_icon
+
 from src.analysis.session_stats import summarize
 from src.storage.journal import ShotJournal
 from src.storage.report import ReportError, export_report
@@ -40,6 +42,7 @@ class StatsDialog(QDialog):
             parent: Родительский виджет.
         """
         super().__init__(parent)
+        set_window_icon(self)
         self.setWindowTitle("Статистика сессии")
 
         self._journal = journal or ShotJournal()

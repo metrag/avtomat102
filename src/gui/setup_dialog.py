@@ -18,6 +18,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from src.utils.window_utils import set_window_icon
+
 logger = logging.getLogger(__name__)
 
 RANKS = ["Курсант", "Мл. сержант", "Сержант", "Ст. сержант", "Прапорщик", "Лейтенант"]
@@ -36,6 +38,7 @@ class SetupDialog(QDialog):
             parent: Родительский виджет.
         """
         super().__init__(parent)
+        set_window_icon(self)
         self.setWindowTitle("Настройка занятия")
         self._build_ui()
         logger.info("Setup dialog shown")

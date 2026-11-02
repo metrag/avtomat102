@@ -12,6 +12,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from src.utils.window_utils import set_window_icon
+
 logger = logging.getLogger(__name__)
 
 _GERB_PATH = Path(__file__).resolve().parents[2] / "assets" / "images" / "gerb.png"
@@ -28,6 +30,7 @@ class SplashScreen(QDialog):
             parent: Родительский виджет.
         """
         super().__init__(parent)
+        set_window_icon(self)
         self.setWindowTitle("Тренажёр стрельбы по БПЛА")
         self._build_ui()
         logger.info("Splash screen shown")
