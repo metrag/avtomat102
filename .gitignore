@@ -23,6 +23,8 @@ data/logs/*
 data/calibration/*
 !data/calibration/.gitkeep
 data/models/*.pt
+data/shots/
+trainer.log
 
 # Build artifacts
 build/
