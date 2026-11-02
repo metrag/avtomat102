@@ -54,17 +54,19 @@ def main() -> int:
     _apply_stylesheet(app)
 
     splash = SplashScreen()
+    splash.showMaximized()
     if splash.exec() != QDialog.DialogCode.Accepted:
         logger.info("Cancelled at splash screen")
         return 0
 
     setup = SetupDialog()
+    setup.showMaximized()
     if setup.exec() != QDialog.DialogCode.Accepted:
         logger.info("Cancelled at setup dialog")
         return 0
 
     window = MainWindow(session_setup=setup.data())
-    window.show()
+    window.showMaximized()
 
     return app.exec()
 

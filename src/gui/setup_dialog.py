@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -36,19 +37,24 @@ class SetupDialog(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("Настройка занятия")
-        self.setMinimumWidth(460)
         self._build_ui()
         logger.info("Setup dialog shown")
 
     def _build_ui(self) -> None:
         """Создаёт поля формы."""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        container = QWidget()
+        container.setMaximumWidth(600)
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(24, 24, 24, 24)
+        container_layout.setSpacing(16)
 
         header = QLabel("Параметры тренировочного занятия")
         header.setObjectName("setup_header")
-        layout.addWidget(header)
+        header.setWordWrap(True)
+        container_layout.addWidget(header)
 
         form = QFormLayout()
         form.setSpacing(12)
@@ -90,8 +96,8 @@ class SetupDialog(QDialog):
         self._ammo_spin.setValue(30)
         form.addRow("Количество патронов:", self._ammo_spin)
 
-        layout.addLayout(form)
-        layout.addStretch()
+        container_layout.addLayout(form)
+        container_layout.addStretch()
 
         buttons = QHBoxLayout()
         buttons.addStretch()
@@ -107,7 +113,11 @@ class SetupDialog(QDialog):
         cancel_button.clicked.connect(self.reject)
         buttons.addWidget(cancel_button)
 
-        layout.addLayout(buttons)
+        container_layout.addLayout(buttons)
+
+        layout.addStretch()
+        layout.addWidget(container, alignment=Qt.AlignmentFlag.AlignHCenter)
+        layout.addStretch()
 
     def _on_distance_changed(self, text: str) -> None:
         """Переключает поле собственной дистанции при выборе «Своя...».

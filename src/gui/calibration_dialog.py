@@ -40,7 +40,7 @@ class CalibrationDialog(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("Калибровка прицела")
-        self.resize(800, 600)
+
 
         self._config = load_config()
         self._offset: tuple[int, int] | None = None

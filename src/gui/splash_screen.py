@@ -29,19 +29,19 @@ class SplashScreen(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("Тренажёр стрельбы по БПЛА")
-        self.setFixedSize(800, 800)
         self._build_ui()
         logger.info("Splash screen shown")
 
     def _build_ui(self) -> None:
         """Создаёт элементы заставки."""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 32, 40, 32)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        spacer_top = QWidget()
-        spacer_top.setFixedHeight(8)
-        layout.addWidget(spacer_top)
+        container = QWidget()
+        container.setMaximumWidth(600)
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(40, 32, 40, 32)
+        container_layout.setSpacing(16)
 
         # Герб — изображение из assets/images/gerb.png.
         image_label = QLabel()
@@ -49,7 +49,7 @@ class SplashScreen(QDialog):
         image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         image_label.setMinimumHeight(_MAX_IMAGE_SIZE)
         image_label.setPixmap(self._load_gerb())
-        layout.addWidget(image_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        container_layout.addWidget(image_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
         title = QLabel(
             "Оптико-электронный интерактивный\n"
@@ -59,9 +59,7 @@ class SplashScreen(QDialog):
         title.setObjectName("splash_title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setWordWrap(True)
-        layout.addWidget(title)
-
-        layout.addStretch()
+        container_layout.addWidget(title)
 
         next_button = QPushButton("Начать")
         next_button.setObjectName("accent")
@@ -69,7 +67,11 @@ class SplashScreen(QDialog):
         next_button.clicked.connect(self.accept)
         button_row = QVBoxLayout()
         button_row.addWidget(next_button, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addLayout(button_row)
+        container_layout.addLayout(button_row)
+
+        layout.addStretch()
+        layout.addWidget(container, alignment=Qt.AlignmentFlag.AlignHCenter)
+        layout.addStretch()
 
     @staticmethod
     def _load_gerb() -> "QPixmap":

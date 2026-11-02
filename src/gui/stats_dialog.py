@@ -41,7 +41,6 @@ class StatsDialog(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("Статистика сессии")
-        self.resize(700, 500)
 
         self._journal = journal or ShotJournal()
         self._session_id: int | None = None

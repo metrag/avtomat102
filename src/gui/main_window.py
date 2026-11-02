@@ -114,7 +114,6 @@ class MainWindow(QMainWindow):
         """
         super().__init__(parent)
         self.setWindowTitle("Тренажёр стрельбы по БПЛА")
-        self.resize(1440, 900)
         self.setMinimumSize(1024, 700)
 
         self._config = load_config()
@@ -279,6 +278,7 @@ class MainWindow(QMainWindow):
         """Открывает диалог калибровки прицела."""
         logger.info("Opening calibration dialog")
         dialog = CalibrationDialog(self)
+        dialog.showMaximized()
         dialog.exec()
 
     def on_start_session(self) -> None:
@@ -329,6 +329,7 @@ class MainWindow(QMainWindow):
         """Открывает диалог статистики последней сессии."""
         logger.info("Opening stats dialog")
         dialog = StatsDialog(journal=self._journal, parent=self)
+        dialog.showMaximized()
         dialog.exec()
 
     def on_shot(self, hit: bool, coordinates: tuple[int, int]) -> None:
@@ -503,6 +504,7 @@ class MainWindow(QMainWindow):
             else None
         )
         dialog = ShotPhotoDialog(shot_no=row + 1, photo_path=path, parent=self)
+        dialog.showMaximized()
         dialog.exec()
 
     def closeEvent(self, event) -> None:
