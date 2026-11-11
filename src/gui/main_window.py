@@ -4,7 +4,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from PyQt6.QtCore import QBuffer, QIODevice, Qt
+import numpy as np
+from PyQt6.QtCore import QBuffer, QIODevice, Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QImage, QKeySequence, QPainter, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
@@ -23,9 +24,12 @@ from PyQt6.QtWidgets import (
 
 from src.utils.window_utils import set_window_icon
 
+from src.analysis.hit_checker import check_hit
+from src.detection.stub_detector import StubDetector
 from src.gui.calibration_dialog import CalibrationDialog
 from src.gui.shot_photo_dialog import ShotPhotoDialog
 from src.gui.stats_dialog import StatsDialog
+from src.network.udp_receiver import UDPReceiver
 from src.storage.journal import ShotJournal
 from src.utils.config import load_config
 
@@ -105,6 +109,9 @@ class _AspectRatioLabel(QLabel):
 class MainWindow(QMainWindow):
     """Главное окно тренера с видеопанелью, журналом и статистикой."""
 
+    # Кадры из UDP-потока передаются в GUI-поток через этот сигнал.
+    _frame_received = pyqtSignal(object, object)
+
     def __init__(
         self, parent: QWidget | None = None, *, session_setup: dict | None = None
     ) -> None:
@@ -128,12 +135,15 @@ class MainWindow(QMainWindow):
         self._misses = 0
         self._last_frame: QPixmap | None = None
         self._shot_photo_paths: list[str | None] = []
+        self._detector = StubDetector()  # Заглушка: YOLO-детекция пока не подключена.
+        self._receiver: UDPReceiver | None = None
 
         self._build_ui()
         self._connect_actions()
         self._update_session_status()
         self._apply_session_info()
         self._update_manual_controls()
+        self._start_receiver()
 
     def _build_ui(self) -> None:
         """Создаёт виджеты и компоновку главного окна."""
@@ -155,7 +165,7 @@ class MainWindow(QMainWindow):
         top_layout.setSpacing(12)
 
         self._video_label = _AspectRatioLabel(_VIDEO_ASPECT_RATIO, central)
-        self._video_label.setText("Видеопоток не подключён")
+        self._video_label.setText("Ожидание фото с камеры…")
         self._video_label.setStyleSheet("background-color: #1a1a1a; color: #ffffff;")
         top_layout.addWidget(self._video_label, stretch=1)
 
@@ -395,6 +405,100 @@ class MainWindow(QMainWindow):
         self._last_frame = pixmap
         self._video_label.setPixmap(pixmap)
 
+    def _start_receiver(self) -> None:
+        """Запускает UDP-приём кадров от контроллера камеры."""
+        self._frame_received.connect(self._on_frame_received)
+        network = self._config.get("network", {}) or {}
+        self._receiver = UDPReceiver(
+            video_port=int(network.get("video_port", 5000)),
+            trigger_port=int(network.get("trigger_port", 5001)),
+            buffer_size=int(network.get("buffer_size", 65536)),
+            on_video_frame=self._handle_udp_frame,
+            on_trigger_frame=self._handle_udp_frame,
+        )
+        try:
+            self._receiver.start()
+        except OSError as exc:
+            logger.error("UDP receiver not started: %s", exc)
+            self._receiver = None
+
+    def _handle_udp_frame(self, timestamp, frame: np.ndarray) -> None:
+        """Колбэк UDP-приёмника: выполняется в фоновом потоке.
+
+        Args:
+            timestamp: Метка времени пакета (или время приёма на ПК).
+            frame: Кадр BGR (ndarray).
+        """
+        self._frame_received.emit(timestamp, frame)
+
+    def _on_frame_received(self, timestamp, frame: np.ndarray) -> None:
+        """Обрабатывает принятый кадр в GUI-потоке.
+
+        Показывает фото; в автоматическом режиме засчитывает выстрел.
+
+        Args:
+            timestamp: Метка времени пакета (или время приёма на ПК).
+            frame: Кадр BGR (ndarray).
+        """
+        logger.debug("Frame received (ts=%s)", timestamp)
+        pixmap = self._frame_to_pixmap(frame)
+        if pixmap is None:
+            logger.warning("Failed to convert frame to QPixmap")
+            return
+
+        self.set_video_frame(pixmap)
+
+        if not self._session_started:
+            return
+        if (self._session_setup or {}).get("mode") == "Ручной":
+            # Результат отмечает тренер кнопками — фото уже показано.
+            return
+        self._record_auto_shot(frame)
+
+    def _record_auto_shot(self, frame: np.ndarray) -> None:
+        """Засчитывает выстрел по данным детекции (пока заглушка).
+
+        Точка прицеливания — центр кадра со смещением калибровки.
+
+        Args:
+            frame: Кадр BGR (ndarray).
+        """
+        try:
+            detections = self._detector.detect(frame)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Detection failed: %s", exc)
+            detections = []
+
+        height, width = frame.shape[:2]
+        calibration = self._config.get("calibration", {}) or {}
+        aim = (
+            width // 2 + int(calibration.get("offset_x", 0)),
+            height // 2 + int(calibration.get("offset_y", 0)),
+        )
+        hit = check_hit(aim, detections)
+        logger.info(
+            "Auto shot: aim=%s hit=%s detections=%d", aim, hit, len(detections)
+        )
+        self.on_shot(hit, aim)
+
+    @staticmethod
+    def _frame_to_pixmap(frame: np.ndarray) -> QPixmap | None:
+        """Конвертирует BGR-кадр ndarray в QPixmap.
+
+        Args:
+            frame: Кадр BGR (ndarray).
+
+        Returns:
+            QPixmap или None, если кадр пуст.
+        """
+        if frame is None or frame.size == 0:
+            return None
+        height, width = frame.shape[:2]
+        image = QImage(
+            frame.data, width, height, frame.strides[0], QImage.Format.Format_BGR888
+        )
+        return QPixmap.fromImage(image.copy())
+
     def _update_stats(self) -> None:
         """Обновляет панель статистики."""
         total = self._hits + self._misses
@@ -517,6 +621,9 @@ class MainWindow(QMainWindow):
             event: Событие закрытия.
         """
         logger.info("Main window is closing")
+        if self._receiver is not None:
+            self._receiver.stop()
+            self._receiver = None
         if self._session_started:
             self.on_finish_session()
         event.accept()

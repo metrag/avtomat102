@@ -1,0 +1,13 @@
+{
+  "target_host": "auto",
+  "fallback_broadcast": "255.255.255.255",
+  "trigger_port": 5001,
+  "gpio_pin": "A19",
+  "button_active_low": true,
+  "debounce_ms": 50,
+  "camera_width": 1280,
+  "camera_height": 720,
+  "jpeg_quality": 51,
+  "max_datagram": 65507,
+  "save_dir": "/tmp"
+}

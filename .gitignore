@@ -31,3 +31,6 @@ trainer.log
 build/
 dist/
 *.spec
+
+# MaixCAM board backup (wifi.pass / wpa_supplicant.conf содержат реальные пароли)
+maixcam/boot/

@@ -1,0 +1,40 @@
+#!/bin/sh
+# Автозапуск photo_trigger.py (фото по кнопке -> UDP).
+# В Buildroot нет pkill/pgrep — убиваем процессы через ps|grep.
+case "$1" in
+    start)
+        if [ -f /root/photo_trigger.py ]; then
+            if ps | grep -v grep | grep -q photo_trigger.py; then
+                echo "photo_trigger already running"
+            else
+                nohup python3 -u /root/photo_trigger.py >> /tmp/photo_trigger.log 2>&1 &
+                echo "photo_trigger started"
+            fi
+        fi
+        ;;
+    stop)
+        # Сначала мягкий TERM (скрипт закрывает камеру), жёсткий
+        # kill -9 оставлял буферы драйвера занятыми.
+        ps | grep photo_trigger.py | grep -v grep | while read pid rest; do
+            kill "$pid" 2>/dev/null
+        done
+        sleep 2
+        ps | grep photo_trigger.py | grep -v grep | while read pid rest; do
+            kill -9 "$pid" 2>/dev/null
+        done
+        echo "photo_trigger stopped"
+        ;;
+    restart)
+        $0 stop
+        sleep 1
+        $0 start
+        ;;
+    status)
+        if ps | grep -v grep | grep -q photo_trigger.py; then
+            echo "photo_trigger running"
+        else
+            echo "photo_trigger stopped"
+        fi
+        ;;
+esac
+exit 0

@@ -2,8 +2,9 @@
 
 Принимает датаграммы в формате JSON с полями:
   type        — "video" или "trigger"
-  timestamp   — метка времени (число или строка)
   frame       — JPEG-изображение, закодированное в base64
+  timestamp   — метка времени (необязательно); если поле отсутствует,
+                используется время приёма на ПК
 
 Колбэки не привязаны к PyQt и могут быть любыми вызываемыми объектами.
 """
@@ -13,6 +14,7 @@ import json
 import logging
 import socket
 import threading
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -172,13 +174,17 @@ class UDPReceiver:
             data: Сырые байты датаграммы.
 
         Returns:
-            Кортеж (timestamp, frame), где frame — ndarray в формате BGR.
+            Кортеж (timestamp, frame), где frame — ndarray в формате BGR,
+            а timestamp — метка из пакета или время приёма на ПК.
 
         Raises:
             ValueError: Если frame не удалось декодировать.
         """
         payload = json.loads(data.decode("utf-8"))
-        timestamp = payload["timestamp"]
+        timestamp = payload.get("timestamp")
+        if timestamp is None:
+            # Время фиксируется на ПК в момент приёма пакета.
+            timestamp = time.time()
         encoded_frame = payload["frame"]
 
         jpeg_bytes = base64.b64decode(encoded_frame)
