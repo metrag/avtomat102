@@ -70,6 +70,9 @@ case "$1" in
             if ps | grep -v grep | grep -q photo_trigger.py; then
                 echo "photo_trigger already running"
             else
+                # Отключаем энергосбережение WiFi: иначе пакеты буферизируются
+                # точкой доступа и приходят с задержкой (или теряются).
+                iw dev wlan0 set power_save off 2>/dev/null
                 nohup python3 -u /root/photo_trigger.py >> /tmp/photo_trigger.log 2>&1 &
                 echo "photo_trigger started"
             fi
@@ -77,11 +80,20 @@ case "$1" in
         ;;
     stop)
         # Сначала мягкий TERM (скрипт закрывает камеру), жёсткий
-        # kill -9 оставлял буферы драйвера занятыми.
+        # kill -9 оставлял буферы драйвера занятыми. Ждём до 10 с
+        # завершения: полная очистка безопасна, прерванная — вешает TCP.
         ps | grep photo_trigger.py | grep -v grep | while read pid rest; do
             kill "$pid" 2>/dev/null
         done
-        sleep 2
+        i=0
+        while [ $i -lt 10 ]; do
+            left=$(ps | grep photo_trigger.py | grep -v grep | wc -l)
+            if [ "$left" -eq 0 ]; then
+                break
+            fi
+            sleep 1
+            i=$((i+1))
+        done
         ps | grep photo_trigger.py | grep -v grep | while read pid rest; do
             kill -9 "$pid" 2>/dev/null
         done
@@ -117,6 +129,7 @@ start_trigger() {
 apply_wifi() {
     log "Restarting WiFi (S30wifi)..."
     /etc/init.d/S30wifi restart 2>&1 || log "S30wifi restart returned $?"
+    iw dev wlan0 set power_save off 2>/dev/null
     sleep 3
 }
 
@@ -177,6 +190,13 @@ EOF
     ifconfig wlan0 up 2>/dev/null || true
 
     apply_wifi
+
+    # В STA-режиме не должны работать AP-демоны. stop() в S30wifi убивает их
+    # через kill с пустым списком PID (на Buildroot нет pidof) — прибиваем сами.
+    ps | grep -E "udhcpd|hostapd" | grep -v grep | while read pid rest; do
+        kill -9 "$pid" 2>/dev/null
+    done
+
     install_autostart
     start_trigger
     status

@@ -43,8 +43,15 @@ DEFAULTS = {
     "gpio_pin": "A19",
     "button_active_low": True,
     "debounce_ms": 50,
-    "camera_width": 1280,
-    "camera_height": 720,
+    # Захват сразу в размере отправки: лишний resize на плате ~450 мс,
+    # а кодирование JPEG — всего ~30 мс. 640x360 (16:9) укладывается
+    # в лимит UDP даже для плотной сцены (768x432 — уже нет).
+    "camera_width": 640,
+    "camera_height": 360,
+    # Доп. уменьшение перед JPEG (0 — выключено). Оставлено на случай
+    # кадров, не влезающих в датаграмму; resize дорогой, поэтому 0.
+    "out_width": 0,
+    "out_height": 0,
     "jpeg_quality": 51,
     "max_datagram": 65507,
     "save_dir": "/tmp",
@@ -114,10 +121,15 @@ class Button:
         return (value == 0) if self._active_low else (value == 1)
 
     def wait_press(self) -> None:
-        """Ждёт нажатия; после срабатывания ждёт отпускания (1 нажатие = 1 фото)."""
+        """Ждёт нажатия с антидребезгом; выстрел — сразу по нажатию."""
         while not self.pressed():
             time.sleep(0.01)
         time.sleep(self._debounce_ms / 1000.0)  # антидребезг
+        while not self.pressed():  # ложный срабатывание — ждём настоящего нажатия
+            time.sleep(0.01)
+
+    def wait_release(self) -> None:
+        """Ждёт отпускания кнопки (удержание = 1 фото)."""
         while self.pressed():
             time.sleep(0.01)
 
@@ -127,11 +139,14 @@ class ShotCamera:
 
     MAX_CONSECUTIVE_ERRORS = 10
 
-    def __init__(self, width: int, height: int, quality: int, max_datagram: int):
+    def __init__(self, width: int, height: int, quality: int, max_datagram: int,
+                 out_width: int = 0, out_height: int = 0):
         self._w = width
         self._h = height
         self._quality = quality
         self._max_datagram = max_datagram
+        self._out_w = out_width
+        self._out_h = out_height
         self._cam = None
         self._errors = 0
 
@@ -150,6 +165,10 @@ class ShotCamera:
             except Exception:
                 pass
             self._cam = None
+
+    def warmup(self) -> None:
+        """Прогрев: открываем камеру сразу, чтобы первый выстрел был быстрым."""
+        self._open()
 
     def capture_jpeg(self) -> bytes:
         """Делает кадр и возвращает JPEG-байты, подобранные под лимит UDP."""
@@ -173,23 +192,45 @@ class ShotCamera:
         return self._encode_fit(img)
 
     def _encode_fit(self, img) -> bytes:
-        """JPEG так, чтобы base64+JSON <= max_datagram; иначе кадр уменьшается."""
+        """JPEG так, чтобы base64+JSON <= max_datagram; иначе кадр уменьшается.
+
+        При заданных out_width/out_height кадр заранее уменьшается до них
+        (resize на плате дорогой ~450 мс, поэтому выключен: камера сразу
+        захватывает в размере отправки). Дробление пополам — только
+        аварийный запас, если JPEG не влезает в датаграмму.
+        """
         head_room = 256  # запас под JSON-обёртку
         quality = self._quality
 
         cur = img
+        if (
+            self._out_w
+            and self._out_h
+            and (img.width(), img.height()) != (self._out_w, self._out_h)
+        ):
+            t0 = time.monotonic()
+            cur = img.resize(self._out_w, self._out_h)
+            logger.info(
+                "Resize %dx%d -> %dx%d in %d ms",
+                img.width(), img.height(), cur.width(), cur.height(),
+                int((time.monotonic() - t0) * 1000),
+            )
+
         for attempt in range(4):
+            t0 = time.monotonic()
             jpg = cur.to_jpeg(quality)
             raw = jpg.to_bytes()
+            spent = int((time.monotonic() - t0) * 1000)
             if 4 * ((len(raw) + 2) // 3) + head_room <= self._max_datagram:
                 logger.info(
-                    "JPEG %dx%d q=%d -> %d bytes (fits datagram)",
-                    cur.width(), cur.height(), quality, len(raw),
+                    "JPEG %dx%d q=%d -> %d bytes in %d ms (fits datagram)",
+                    cur.width(), cur.height(), quality, len(raw), spent,
                 )
                 return raw
             logger.warning(
-                "JPEG too big (%d bytes) for limit %d, shrinking (attempt %d)",
-                len(raw), self._max_datagram, attempt + 1,
+                "JPEG %d bytes -> datagram ~%d > limit %d, shrinking (attempt %d)",
+                len(raw), 4 * ((len(raw) + 2) // 3) + head_room,
+                self._max_datagram, attempt + 1,
             )
             cur = cur.resize(cur.width() // 2, cur.height() // 2)
 
@@ -245,22 +286,31 @@ def save_local(jpeg: bytes, save_dir: str, timestamp: float) -> str:
 def do_shot(cfg: dict, cam: ShotCamera) -> None:
     """Полный цикл: захват -> кодирование -> отправка (+ локальная копия)."""
     timestamp = time.time()
+    t0 = time.monotonic()
     try:
         jpeg = cam.capture_jpeg()
     except Exception:
         logger.error("Shot aborted: no frame")
         return
+    t_capture = time.monotonic()
 
     # Цель пересчитывается на каждый выстрел: адрес wlan0 может
     # появиться (смениться) после старта демона (DHCP, смена сети).
     targets = resolve_targets(cfg)
 
     data = build_packet(jpeg)
+    t_packet = time.monotonic()
     if len(data) > cfg["max_datagram"]:
         logger.error("Datagram %d exceeds limit %d — not sent", len(data), cfg["max_datagram"])
     else:
         if send_packet(data, targets, cfg["trigger_port"]):
+            t_sent = time.monotonic()
             logger.info("Shot sent OK (%d bytes datagram)", len(data))
+            logger.info(
+                "TIMING capture=%dms packet=%dms send=%dms total=%dms",
+                int((t_capture - t0) * 1000), int((t_packet - t_capture) * 1000),
+                int((t_sent - t_packet) * 1000), int((t_sent - t0) * 1000),
+            )
         else:
             logger.error("Shot NOT delivered, saving locally")
 
@@ -300,6 +350,7 @@ def main() -> int:
     cam = ShotCamera(
         cfg["camera_width"], cfg["camera_height"],
         cfg["jpeg_quality"], cfg["max_datagram"],
+        cfg.get("out_width", 0), cfg.get("out_height", 0),
     )
 
     def _graceful_stop(signum, _frame):
@@ -311,6 +362,11 @@ def main() -> int:
         raise SystemExit(0)
 
     signal.signal(signal.SIGTERM, _graceful_stop)
+
+    try:
+        cam.warmup()
+    except Exception as exc:
+        logger.warning("Camera warmup failed: %s — will retry on first shot", exc)
 
     if test_shot:
         logger.info("Test shot (no button)")
@@ -326,6 +382,7 @@ def main() -> int:
             button.wait_press()
             logger.info("Button pressed")
             do_shot(cfg, cam)
+            button.wait_release()
     except KeyboardInterrupt:
         logger.info("Interrupted")
     finally:

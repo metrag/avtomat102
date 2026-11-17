@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 from PyQt6.QtCore import QBuffer, QIODevice, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QColor, QImage, QKeySequence, QPainter, QPixmap
+from PyQt6.QtGui import QAction, QColor, QImage, QKeySequence, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QFrame,
@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -26,7 +27,11 @@ from src.utils.window_utils import set_window_icon
 
 from src.analysis.hit_checker import check_hit
 from src.detection.stub_detector import StubDetector
-from src.gui.calibration_dialog import CalibrationDialog
+from src.gui.calibration_dialog import (
+    CalibrationDialog,
+    clear_calibration,
+    load_calibration,
+)
 from src.gui.shot_photo_dialog import ShotPhotoDialog
 from src.gui.stats_dialog import StatsDialog
 from src.network.udp_receiver import UDPReceiver
@@ -66,6 +71,15 @@ class _AspectRatioLabel(QLabel):
         """
         self._original_pixmap = pixmap
         self._fit_pixmap()
+
+    def show_placeholder(self, text: str) -> None:
+        """Показывает текст-заглушку вместо кадра.
+
+        Args:
+            text: Текст заглушки.
+        """
+        self._original_pixmap = None
+        self.setText(text)
 
     def resizeEvent(self, event) -> None:
         """Обрабатывает изменение размера виджета.
@@ -127,16 +141,19 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1024, 700)
 
         self._config = load_config()
+        clear_calibration()  # Файл прошлой калибровки подчищается при старте.
         self._journal = ShotJournal()
         self._session_setup = session_setup
         self._session_id: int | None = None
         self._session_started = False
+        self._calibrated = False  # Выполнена калибровка для следующего занятия.
         self._hits = 0
         self._misses = 0
         self._last_frame: QPixmap | None = None
         self._shot_photo_paths: list[str | None] = []
         self._detector = StubDetector()  # Заглушка: YOLO-детекция пока не подключена.
         self._receiver: UDPReceiver | None = None
+        self._calibration_dialog: CalibrationDialog | None = None
 
         self._build_ui()
         self._connect_actions()
@@ -165,7 +182,7 @@ class MainWindow(QMainWindow):
         top_layout.setSpacing(12)
 
         self._video_label = _AspectRatioLabel(_VIDEO_ASPECT_RATIO, central)
-        self._video_label.setText("Ожидание фото с камеры…")
+        self._video_label.show_placeholder("Выстрелы недоступны до калибровки (F1)")
         self._video_label.setStyleSheet("background-color: #1a1a1a; color: #ffffff;")
         top_layout.addWidget(self._video_label, stretch=1)
 
@@ -288,15 +305,57 @@ class MainWindow(QMainWindow):
         self._miss_button.clicked.connect(lambda: self.on_shot(False, (0, 0)))
 
     def on_calibrate(self) -> None:
-        """Открывает диалог калибровки прицела."""
+        """Открывает диалог калибровки прицела.
+
+        Пока диалог открыт, входящие фото уходят в него (а не в журнал
+        выстрелов): калибровочный выстрел нужен для отметки точки попадания.
+        """
         logger.info("Opening calibration dialog")
         dialog = CalibrationDialog(self)
-        dialog.showMaximized()
-        dialog.exec()
+        self._calibration_dialog = dialog
+        try:
+            dialog.showMaximized()
+            dialog.exec()
+        finally:
+            self._calibration_dialog = None
+
+        if dialog.saved:
+            self._calibrated = True
+            offset_x, offset_y = self._calibration_offsets()
+            logger.info("Calibration saved: offset_x=%d offset_y=%d", offset_x, offset_y)
+            self._video_label.show_placeholder(
+                "Калибровка выполнена. Занятие начнётся с первого выстрела."
+            )
+        else:
+            logger.info("Calibration dialog closed without saving")
 
     def on_start_session(self) -> None:
-        """Начинает новое тренировочное занятие."""
+        """Начинает новое тренировочное занятие.
+
+        Занятие не стартует без свежей калибровки прицела: при необходимости
+        открывается диалог калибровки, и занятие начинается сразу после её
+        сохранения. Калибровка израсходуется занятием — перед следующим
+        занятием требуется снова.
+        """
+        if self._session_started:
+            return  # Занятие уже идёт.
+
+        if not self._calibrated:
+            logger.warning("Session start blocked: calibration required")
+            QMessageBox.warning(
+                self,
+                "Требуется калибровка",
+                "Перед каждым занятием выполняйте калибровку прицела (F1):\n"
+                "нажмите кнопку на камере, дождитесь фото и отметьте точку "
+                "попадания на нём.\n\n"
+                "Занятие начнётся сразу после сохранения калибровки.",
+            )
+            self.on_calibrate()
+            if not self._calibrated:
+                return  # Калибровка отменена — занятие не начинаем.
+
         logger.info("Starting training session")
+        self._calibrated = False  # Калибровка израсходована текущим занятием.
         self._session_started = True
         self._hits = 0
         self._misses = 0
@@ -317,7 +376,7 @@ class MainWindow(QMainWindow):
 
         self._start_button.setEnabled(False)
         self._finish_button.setEnabled(True)
-        self._video_label.setText("Занятие начато. Ожидание кадров...")
+        self._video_label.show_placeholder("Занятие начато. Ожидание кадров...")
 
     def on_finish_session(self) -> None:
         """Завершает текущее тренировочное занятие."""
@@ -334,7 +393,7 @@ class MainWindow(QMainWindow):
 
         self._start_button.setEnabled(True)
         self._finish_button.setEnabled(False)
-        self._video_label.setText("Занятие завершено")
+        self._video_label.show_placeholder("Занятие завершено")
         self._update_session_status()
         self._update_manual_controls()
 
@@ -446,10 +505,28 @@ class MainWindow(QMainWindow):
             logger.warning("Failed to convert frame to QPixmap")
             return
 
-        self.set_video_frame(pixmap)
+        if self._calibration_dialog is not None:
+            # Идёт калибровка: в диалог уходит чистое фото (без прицела),
+            # выстрел в журнал не записывается.
+            self.set_video_frame(self._draw_sight(pixmap, frame))
+            self._calibration_dialog.set_photo(pixmap)
+            return
+
+        if not (self._calibrated or self._session_started):
+            # Выстрел до калибровки не принимается.
+            logger.info("Shot ignored: calibration required")
+            self._video_label.show_placeholder(
+                "Выстрелы недоступны до калибровки (F1)"
+            )
+            return
 
         if not self._session_started:
-            return
+            # Первый выстрел после калибровки начинает занятие автоматически,
+            # чтобы журнал выстрелов вёлся с самого первого выстрела.
+            self.on_start_session()
+
+        self.set_video_frame(self._draw_sight(pixmap, frame))
+
         if (self._session_setup or {}).get("mode") == "Ручной":
             # Результат отмечает тренер кнопками — фото уже показано.
             return
@@ -470,11 +547,8 @@ class MainWindow(QMainWindow):
             detections = []
 
         height, width = frame.shape[:2]
-        calibration = self._config.get("calibration", {}) or {}
-        aim = (
-            width // 2 + int(calibration.get("offset_x", 0)),
-            height // 2 + int(calibration.get("offset_y", 0)),
-        )
+        offset_x, offset_y = self._calibration_offsets()
+        aim = (width // 2 + offset_x, height // 2 + offset_y)
         hit = check_hit(aim, detections)
         logger.info(
             "Auto shot: aim=%s hit=%s detections=%d", aim, hit, len(detections)
@@ -498,6 +572,42 @@ class MainWindow(QMainWindow):
             frame.data, width, height, frame.strides[0], QImage.Format.Format_BGR888
         )
         return QPixmap.fromImage(image.copy())
+
+    def _calibration_offsets(self) -> tuple[int, int]:
+        """Возвращает текущее смещение прицела (из калибровки, иначе config).
+
+        Returns:
+            Кортеж (offset_x, offset_y).
+        """
+        calibration = load_calibration() or (self._config.get("calibration", {}) or {})
+        return (
+            int(calibration.get("offset_x", 0)),
+            int(calibration.get("offset_y", 0)),
+        )
+
+    def _draw_sight(self, pixmap: QPixmap, frame: np.ndarray) -> QPixmap:
+        """Рисует прицел (калибровочная точка) на кадре.
+
+        Args:
+            pixmap: Кадр видеопотока.
+            frame: Исходный кадр BGR (для определения размеров).
+
+        Returns:
+            Копия кадра с нарисованным прицелом.
+        """
+        height, width = frame.shape[:2]
+        offset_x, offset_y = self._calibration_offsets()
+        aim_x = width // 2 + offset_x
+        aim_y = height // 2 + offset_y
+
+        result = pixmap.copy()
+        painter = QPainter(result)
+        painter.setPen(QPen(QColor(255, 64, 64), 2))
+        painter.drawEllipse(aim_x - 10, aim_y - 10, 20, 20)
+        painter.drawLine(aim_x - 14, aim_y, aim_x + 14, aim_y)
+        painter.drawLine(aim_x, aim_y - 14, aim_x, aim_y + 14)
+        painter.end()
+        return result
 
     def _update_stats(self) -> None:
         """Обновляет панель статистики."""

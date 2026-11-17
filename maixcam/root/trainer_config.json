@@ -1,12 +1,14 @@
 {
-  "target_host": "auto",
+  "target_host": "192.168.0.217",
   "fallback_broadcast": "255.255.255.255",
   "trigger_port": 5001,
   "gpio_pin": "A19",
   "button_active_low": true,
   "debounce_ms": 50,
-  "camera_width": 1280,
-  "camera_height": 720,
+  "camera_width": 640,
+  "camera_height": 360,
+  "out_width": 0,
+  "out_height": 0,
   "jpeg_quality": 51,
   "max_datagram": 65507,
   "save_dir": "/tmp"
